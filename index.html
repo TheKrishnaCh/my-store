@@ -47,6 +47,26 @@
     #status { max-width:500px; margin:24px auto 0; text-align:center; font-size:14px; padding:0 20px; font-weight:600; }
     .success { color:#1a7a1a; }
     .error { color:#c0392b; }
+
+    /* LOCATION MODAL */
+    #locationModal {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+      z-index:999; align-items:center; justify-content:center; padding:20px;
+    }
+    #locationModal .modal-box {
+      background:white; border-radius:16px; padding:28px; max-width:360px; width:100%;
+      text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.3);
+    }
+    #modalIcon { font-size:40px; margin-bottom:14px; }
+    #modalTitleEn { color:#6d071a; font-size:18px; margin-bottom:4px; font-weight:bold; }
+    #modalTitleHi { color:#6d071a; font-size:15px; margin-bottom:14px; }
+    #modalMsgEn { color:#555; font-size:14px; margin-bottom:6px; line-height:1.5; }
+    #modalMsgHi { color:#555; font-size:14px; margin-bottom:20px; line-height:1.5; }
+    #modalRetryBtn { margin-bottom:10px; display:none; }
+    #modalCancelBtn {
+      width:100%; padding:11px; border:none; border-radius:10px;
+      background:#eee; color:#555; font-size:14px; cursor:pointer;
+    }
   </style>
 </head>
 <body>
@@ -64,11 +84,24 @@
 <div id="grid">Loading products...</div>
 <div id="status"></div>
 
-<script>
-  // 🔗 Your Store API endpoint
-  const API_URL = "https://script.google.com/macros/s/AKfycby6PGWzJThubrMBv_ze8L-eP_lYHbE_ErtuV7mvj86KCN81dxgmC2AnrGh2N9r0gzzz/exec";
+<!-- LOCATION MODAL -->
+<div id="locationModal">
+  <div class="modal-box">
+    <div id="modalIcon">📍</div>
+    <h3 id="modalTitleEn"></h3>
+    <p id="modalTitleHi"></p>
+    <p id="modalMsgEn"></p>
+    <p id="modalMsgHi"></p>
+    <button id="modalRetryBtn" onclick="retryLocation()">Try Again / फिर कोशिश करें</button>
+    <button id="modalCancelBtn" onclick="closeModal()">Cancel / रद्द करें</button>
+  </div>
+</div>
 
-  // Countdown — ends 11 PM
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycby6PGWzJThubrMBv_ze8L-eP_lYHbE_ErtuV7mvj86KCN81dxgmC2AnrGh2N9r0gzzz/exec";
+  let pendingOrder = null;
+
+  // ================= COUNTDOWN =================
   function getSaleEndTime() {
     const end = new Date();
     end.setHours(23, 0, 0, 0);
@@ -87,14 +120,11 @@
   setInterval(updateCountdown, 1000);
   updateCountdown();
 
-  // Load products from API
+  // ================= LOAD PRODUCTS =================
   fetch(API_URL)
     .then(res => res.json())
     .then(renderProducts)
-    .catch(err => {
-      document.getElementById("grid").innerHTML = "Failed to load products.";
-      console.error(err);
-    });
+    .catch(() => { document.getElementById("grid").innerHTML = "Failed to load products."; });
 
   function renderProducts(products) {
     const grid = document.getElementById("grid");
@@ -113,36 +143,78 @@
     });
   }
 
-  // Buy + location capture, POST order to API
+  // ================= LOCATION MODAL LOGIC =================
+  function showModal(state) {
+    const modal = document.getElementById("locationModal");
+    const icon = document.getElementById("modalIcon");
+    const titleEn = document.getElementById("modalTitleEn");
+    const titleHi = document.getElementById("modalTitleHi");
+    const msgEn = document.getElementById("modalMsgEn");
+    const msgHi = document.getElementById("modalMsgHi");
+    const retryBtn = document.getElementById("modalRetryBtn");
+
+    if (state === "asking") {
+      icon.textContent = "📍";
+      titleEn.textContent = "Allow Location Access";
+      titleHi.textContent = "कृपया लोकेशन की अनुमति दें";
+      msgEn.textContent = "Please allow location for checking if we can deliver to your area.";
+      msgHi.textContent = "कृपया लोकेशन की अनुमति दें ताकि हम जांच सकें कि आपके क्षेत्र में डिलीवरी संभव है या नहीं।";
+      retryBtn.style.display = "none";
+    } else if (state === "denied") {
+      icon.textContent = "⚠️";
+      titleEn.textContent = "Location Permission Needed";
+      titleHi.textContent = "लोकेशन की अनुमति आवश्यक है";
+      msgEn.textContent = "You denied location access. Tap the lock/site-info icon in your browser's address bar → Location → Allow, then tap 'Try Again' below.";
+      msgHi.textContent = "आपने लोकेशन की अनुमति नहीं दी। ब्राउज़र के एड्रेस बार में लॉक/साइट-इंफो आइकन पर टैप करें → Location → Allow करें, फिर नीचे 'फिर कोशिश करें' पर टैप करें।";
+      retryBtn.style.display = "block";
+    }
+    modal.style.display = "flex";
+  }
+
+  function closeModal() {
+    document.getElementById("locationModal").style.display = "none";
+  }
+
   function buyProduct(name, price) {
-    const status = document.getElementById("status");
+    pendingOrder = { productName: name, price: price };
+    showModal("asking");
+    requestLocation();
+  }
+
+  function retryLocation() {
+    if (!pendingOrder) return;
+    showModal("asking");
+    requestLocation();
+  }
+
+  function requestLocation() {
     if (!navigator.geolocation) {
-      status.innerHTML = '<div class="error">Geolocation not supported.</div>';
+      alert("Geolocation not supported on this device.");
       return;
     }
-    status.innerHTML = "⏳ Getting your location to confirm delivery...";
     navigator.geolocation.getCurrentPosition(
       function (position) {
+        closeModal();
+        const status = document.getElementById("status");
         const orderData = {
-          productName: name,
-          price: price,
+          productName: pendingOrder.productName,
+          price: pendingOrder.price,
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
         };
-        fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify(orderData)
-        })
+        status.innerHTML = "⏳ Placing order...";
+        fetch(API_URL, { method: "POST", body: JSON.stringify(orderData) })
           .then(res => res.json())
           .then(() => {
-            status.innerHTML = `<div class="success">✅ Order placed for ${name}! We got your location for delivery.</div>`;
+            status.innerHTML = `<div class="success">✅ Order placed for ${orderData.productName}! We got your location for delivery.</div>`;
+            pendingOrder = null;
           })
           .catch(() => {
             status.innerHTML = '<div class="error">❌ Order failed. Please try again.</div>';
           });
       },
       function () {
-        status.innerHTML = '<div class="error">❌ Location permission denied.</div>';
+        showModal("denied");
       }
     );
   }

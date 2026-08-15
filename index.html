@@ -4,11 +4,148 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Our Store</title>
   <style>
-    body, html { margin:0; padding:0; height:100%; }
-    iframe { width:100%; height:100vh; border:none; display:block; }
+    * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, Helvetica, sans-serif; }
+    body { background: linear-gradient(180deg, #1a0508 0%, #f4f1ee 260px); padding-bottom:40px; }
+
+    header { position:sticky; top:0; z-index:100; background:#1a0508; padding:14px 20px;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 4px 20px rgba(0,0,0,.4); border-bottom:2px solid #b3122f; }
+    header img { height:42px; object-fit:contain; filter:drop-shadow(0 0 8px rgba(179,18,47,.6)); }
+
+    .sale-banner { background:linear-gradient(90deg,#6d071a,#b3122f,#6d071a); background-size:200% 100%;
+      animation:shimmer 3s linear infinite; color:white; text-align:center; padding:16px;
+      box-shadow:0 4px 20px rgba(179,18,47,.4); }
+    @keyframes shimmer { 0%{background-position:0% 0;} 100%{background-position:200% 0;} }
+    .sale-banner .label { font-size:13px; letter-spacing:2px; text-transform:uppercase; opacity:.95; margin-bottom:8px; font-weight:bold; }
+    #countdown { font-size:26px; font-weight:bold; letter-spacing:1px; }
+    #countdown span.unit { background:rgba(255,255,255,0.18); padding:6px 12px; border-radius:8px;
+      margin:0 4px; box-shadow:0 0 12px rgba(255,255,255,.25) inset; display:inline-block; min-width:55px; }
+
+    h1.section-title { text-align:center; color:#6d071a; margin:32px 0 22px; font-size:24px; }
+
+    #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:22px;
+      max-width:1100px; margin:0 auto; padding:0 20px; }
+
+    .card { position:relative; background:white; border-radius:16px; padding:18px; text-align:center;
+      display:flex; flex-direction:column; box-shadow:0 8px 24px rgba(0,0,0,.1);
+      transition:transform .2s, box-shadow .2s; border:1px solid transparent; overflow:hidden; }
+    .card:hover { transform:translateY(-6px); box-shadow:0 14px 30px rgba(109,7,26,.25); border-color:#b3122f; }
+
+    .badge { position:absolute; top:12px; left:12px; background:linear-gradient(90deg,#b3122f,#6d071a);
+      color:white; font-size:10px; font-weight:bold; padding:5px 10px; border-radius:20px; z-index:2; }
+
+    .card img { width:100%; height:170px; object-fit:contain; border-radius:10px; margin-bottom:14px; background:#f9f9f9; }
+    .card h3 { font-size:15px; color:#222; margin-bottom:6px; min-height:40px; }
+    .card p { font-size:12px; color:#777; margin-bottom:10px; min-height:48px; line-height:1.4; }
+    .price { font-weight:bold; color:#6d071a; font-size:19px; margin-bottom:14px; }
+
+    button { width:100%; padding:13px; border:none; border-radius:10px;
+      background:linear-gradient(90deg,#6d071a,#b3122f); color:white; font-size:15px; font-weight:bold; cursor:pointer; }
+    button:hover { opacity:.9; }
+    button:disabled { background:#aaa; cursor:not-allowed; }
+
+    #status { max-width:500px; margin:24px auto 0; text-align:center; font-size:14px; padding:0 20px; font-weight:600; }
+    .success { color:#1a7a1a; }
+    .error { color:#c0392b; }
   </style>
 </head>
 <body>
-  <iframe src="https://script.google.com/macros/s/AKfycbx8kaYGzXmTrjPnuD2kA-n0ZrRB11r9zPE5_oW6ERhmE5TMvOco2lhRHjH1FEnz8WEN/exec"></iframe>
+
+<header>
+  <img src="https://drive.google.com/thumbnail?id=1XtOHA0VM0RRfcZ9l6VfHS_5_qJZevd60&sz=w1000" alt="Logo">
+</header>
+
+<div class="sale-banner">
+  <div class="label">⚡ Flash Sale Ends In</div>
+  <div id="countdown">--:--:--</div>
+</div>
+
+<h1 class="section-title">🛒 Featured Products</h1>
+<div id="grid">Loading products...</div>
+<div id="status"></div>
+
+<script>
+  // 🔗 Your Store API endpoint
+  const API_URL = "https://script.google.com/macros/s/AKfycby6PGWzJThubrMBv_ze8L-eP_lYHbE_ErtuV7mvj86KCN81dxgmC2AnrGh2N9r0gzzz/exec";
+
+  // Countdown — ends 11 PM
+  function getSaleEndTime() {
+    const end = new Date();
+    end.setHours(23, 0, 0, 0);
+    return end;
+  }
+  function updateCountdown() {
+    const now = new Date();
+    let diff = getSaleEndTime() - now;
+    const el = document.getElementById("countdown");
+    if (diff <= 0) { el.innerHTML = "SALE ENDED"; return; }
+    const h = Math.floor(diff / 3600000); diff -= h*3600000;
+    const m = Math.floor(diff / 60000); diff -= m*60000;
+    const s = Math.floor(diff / 1000);
+    el.innerHTML = `<span class="unit">${String(h).padStart(2,"0")}h</span><span class="unit">${String(m).padStart(2,"0")}m</span><span class="unit">${String(s).padStart(2,"0")}s</span>`;
+  }
+  setInterval(updateCountdown, 1000);
+  updateCountdown();
+
+  // Load products from API
+  fetch(API_URL)
+    .then(res => res.json())
+    .then(renderProducts)
+    .catch(err => {
+      document.getElementById("grid").innerHTML = "Failed to load products.";
+      console.error(err);
+    });
+
+  function renderProducts(products) {
+    const grid = document.getElementById("grid");
+    if (!products.length) { grid.innerHTML = "No products available."; return; }
+    grid.innerHTML = "";
+    products.forEach((p, i) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      const badge = i % 3 === 0 ? '<div class="badge">🔥 BEST SELLER</div>' : '';
+      card.innerHTML = badge +
+        `<img src="${p.imageUrl || 'https://via.placeholder.com/220x170?text=No+Image'}">` +
+        `<h3>${p.name}</h3><p>${p.description || ''}</p>` +
+        `<div class="price">₹${p.price}</div>` +
+        `<button onclick="buyProduct('${p.name.replace(/'/g,"\\'")}', ${p.price})">Buy Now</button>`;
+      grid.appendChild(card);
+    });
+  }
+
+  // Buy + location capture, POST order to API
+  function buyProduct(name, price) {
+    const status = document.getElementById("status");
+    if (!navigator.geolocation) {
+      status.innerHTML = '<div class="error">Geolocation not supported.</div>';
+      return;
+    }
+    status.innerHTML = "⏳ Getting your location to confirm delivery...";
+    navigator.geolocation.getCurrentPosition(
+      function (position) {
+        const orderData = {
+          productName: name,
+          price: price,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify(orderData)
+        })
+          .then(res => res.json())
+          .then(() => {
+            status.innerHTML = `<div class="success">✅ Order placed for ${name}! We got your location for delivery.</div>`;
+          })
+          .catch(() => {
+            status.innerHTML = '<div class="error">❌ Order failed. Please try again.</div>';
+          });
+      },
+      function () {
+        status.innerHTML = '<div class="error">❌ Location permission denied.</div>';
+      }
+    );
+  }
+</script>
 </body>
 </html>

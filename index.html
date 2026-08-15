@@ -21,6 +21,13 @@
     #countdown span.unit { background:rgba(255,255,255,0.18); padding:6px 12px; border-radius:8px;
       margin:0 4px; box-shadow:0 0 12px rgba(255,255,255,.25) inset; display:inline-block; min-width:55px; }
 
+    /* COD BADGE STRIP */
+    .cod-strip {
+      background:#fff3cd; color:#6d4c00; text-align:center; padding:10px 16px;
+      font-size:13px; font-weight:600; border-bottom:1px solid #f0d98c;
+    }
+    .cod-strip .hi { display:block; font-size:12px; font-weight:500; margin-top:2px; opacity:.9; }
+
     h1.section-title { text-align:center; color:#6d071a; margin:32px 0 22px; font-size:24px; }
 
     #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:22px;
@@ -33,6 +40,11 @@
 
     .badge { position:absolute; top:12px; left:12px; background:linear-gradient(90deg,#b3122f,#6d071a);
       color:white; font-size:10px; font-weight:bold; padding:5px 10px; border-radius:20px; z-index:2; }
+
+    .cod-tag {
+      position:absolute; top:12px; right:12px; background:#2e7d32; color:white;
+      font-size:9px; font-weight:bold; padding:5px 8px; border-radius:20px; z-index:2;
+    }
 
     .card img { width:100%; height:170px; object-fit:contain; border-radius:10px; margin-bottom:14px; background:#f9f9f9; }
     .card h3 { font-size:15px; color:#222; margin-bottom:6px; min-height:40px; }
@@ -48,24 +60,23 @@
     .success { color:#1a7a1a; }
     .error { color:#c0392b; }
 
-    /* LOCATION MODAL */
-    #locationModal {
+    /* MODAL (shared style, one at a time) */
+    .modal-overlay {
       display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
       z-index:999; align-items:center; justify-content:center; padding:20px;
     }
-    #locationModal .modal-box {
+    .modal-box {
       background:white; border-radius:16px; padding:28px; max-width:360px; width:100%;
       text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.3);
     }
-    #modalIcon { font-size:40px; margin-bottom:14px; }
-    #modalTitleEn { color:#6d071a; font-size:18px; margin-bottom:4px; font-weight:bold; }
-    #modalTitleHi { color:#6d071a; font-size:15px; margin-bottom:14px; }
-    #modalMsgEn { color:#555; font-size:14px; margin-bottom:6px; line-height:1.5; }
-    #modalMsgHi { color:#555; font-size:14px; margin-bottom:20px; line-height:1.5; }
-    #modalRetryBtn { margin-bottom:10px; display:none; }
-    #modalCancelBtn {
+    .modal-icon { font-size:40px; margin-bottom:14px; }
+    .modal-title-en { color:#6d071a; font-size:18px; margin-bottom:4px; font-weight:bold; }
+    .modal-title-hi { color:#6d071a; font-size:15px; margin-bottom:14px; }
+    .modal-msg-en { color:#555; font-size:14px; margin-bottom:6px; line-height:1.5; }
+    .modal-msg-hi { color:#555; font-size:14px; margin-bottom:20px; line-height:1.5; }
+    .modal-btn-secondary {
       width:100%; padding:11px; border:none; border-radius:10px;
-      background:#eee; color:#555; font-size:14px; cursor:pointer;
+      background:#eee; color:#555; font-size:14px; cursor:pointer; margin-top:10px;
     }
   </style>
 </head>
@@ -80,20 +91,50 @@
   <div id="countdown">--:--:--</div>
 </div>
 
+<div class="cod-strip">
+  💵 Cash on Delivery Available — Pay when your product arrives!
+  <span class="hi">डिलीवरी पर नकद भुगतान उपलब्ध है — सामान मिलने पर भुगतान करें!</span>
+</div>
+
 <h1 class="section-title">🛒 Featured Products</h1>
 <div id="grid">Loading products...</div>
 <div id="status"></div>
 
-<!-- LOCATION MODAL -->
-<div id="locationModal">
+<!-- MODAL 1: ASK PERMISSION (custom, before native prompt) -->
+<div class="modal-overlay" id="askModal">
   <div class="modal-box">
-    <div id="modalIcon">📍</div>
-    <h3 id="modalTitleEn"></h3>
-    <p id="modalTitleHi"></p>
-    <p id="modalMsgEn"></p>
-    <p id="modalMsgHi"></p>
-    <button id="modalRetryBtn" onclick="retryLocation()">Try Again / फिर कोशिश करें</button>
-    <button id="modalCancelBtn" onclick="closeModal()">Cancel / रद्द करें</button>
+    <div class="modal-icon">📍</div>
+    <h3 class="modal-title-en">Location Needed for Delivery</h3>
+    <p class="modal-title-hi">डिलीवरी के लिए लोकेशन आवश्यक है</p>
+    <p class="modal-msg-en">We need your location to confirm we can deliver this product to your address. Please allow location access on the next prompt.</p>
+    <p class="modal-msg-hi">हम आपके पते पर डिलीवरी की पुष्टि के लिए आपकी लोकेशन जानना चाहते हैं। कृपया अगले प्रॉम्प्ट पर लोकेशन की अनुमति दें।</p>
+    <button onclick="proceedToNativePrompt()">Allow / अनुमति दें</button>
+    <button class="modal-btn-secondary" onclick="cancelOrder()">Cancel / रद्द करें</button>
+  </div>
+</div>
+
+<!-- MODAL 2: DENIED -->
+<div class="modal-overlay" id="deniedModal">
+  <div class="modal-box">
+    <div class="modal-icon">⚠️</div>
+    <h3 class="modal-title-en">Location Access Denied</h3>
+    <p class="modal-title-hi">लोकेशन की अनुमति नहीं दी गई</p>
+    <p class="modal-msg-en">Sorry, we can't proceed without your location. Please allow location access to continue your order.</p>
+    <p class="modal-msg-hi">क्षमा करें, आपकी लोकेशन के बिना हम आगे नहीं बढ़ सकते। अपना ऑर्डर जारी रखने के लिए कृपया लोकेशन की अनुमति दें।</p>
+    <button onclick="retryFromDenied()">Allow Location / लोकेशन अनुमति दें</button>
+    <button class="modal-btn-secondary" onclick="cancelOrder()">Cancel / रद्द करें</button>
+  </div>
+</div>
+
+<!-- MODAL 3: SUCCESS -->
+<div class="modal-overlay" id="successModal">
+  <div class="modal-box">
+    <div class="modal-icon">✅</div>
+    <h3 class="modal-title-en">Order Placed!</h3>
+    <p class="modal-title-hi">ऑर्डर सफलतापूर्वक दर्ज हुआ!</p>
+    <p class="modal-msg-en">Thank you! Your item will be delivered to your location. Pay cash on delivery when it arrives.</p>
+    <p class="modal-msg-hi">धन्यवाद! आपका सामान आपके पते पर पहुंचाया जाएगा। सामान मिलने पर नकद भुगतान करें (Cash on Delivery)।</p>
+    <button onclick="closeAllModals()">OK / ठीक है</button>
   </div>
 </div>
 
@@ -135,6 +176,7 @@
       card.className = "card";
       const badge = i % 3 === 0 ? '<div class="badge">🔥 BEST SELLER</div>' : '';
       card.innerHTML = badge +
+        '<div class="cod-tag">COD</div>' +
         `<img src="${p.imageUrl || 'https://via.placeholder.com/220x170?text=No+Image'}">` +
         `<h3>${p.name}</h3><p>${p.description || ''}</p>` +
         `<div class="price">₹${p.price}</div>` +
@@ -143,80 +185,75 @@
     });
   }
 
-  // ================= LOCATION MODAL LOGIC =================
-  function showModal(state) {
-    const modal = document.getElementById("locationModal");
-    const icon = document.getElementById("modalIcon");
-    const titleEn = document.getElementById("modalTitleEn");
-    const titleHi = document.getElementById("modalTitleHi");
-    const msgEn = document.getElementById("modalMsgEn");
-    const msgHi = document.getElementById("modalMsgHi");
-    const retryBtn = document.getElementById("modalRetryBtn");
-
-    if (state === "asking") {
-      icon.textContent = "📍";
-      titleEn.textContent = "Allow Location Access";
-      titleHi.textContent = "कृपया लोकेशन की अनुमति दें";
-      msgEn.textContent = "Please allow location for checking if we can deliver to your area.";
-      msgHi.textContent = "कृपया लोकेशन की अनुमति दें ताकि हम जांच सकें कि आपके क्षेत्र में डिलीवरी संभव है या नहीं।";
-      retryBtn.style.display = "none";
-    } else if (state === "denied") {
-      icon.textContent = "⚠️";
-      titleEn.textContent = "Location Permission Needed";
-      titleHi.textContent = "लोकेशन की अनुमति आवश्यक है";
-      msgEn.textContent = "You denied location access. Tap the lock/site-info icon in your browser's address bar → Location → Allow, then tap 'Try Again' below.";
-      msgHi.textContent = "आपने लोकेशन की अनुमति नहीं दी। ब्राउज़र के एड्रेस बार में लॉक/साइट-इंफो आइकन पर टैप करें → Location → Allow करें, फिर नीचे 'फिर कोशिश करें' पर टैप करें।";
-      retryBtn.style.display = "block";
-    }
-    modal.style.display = "flex";
+  // ================= MODAL FLOW (ONE AT A TIME, SEQUENTIAL) =================
+  function showModal(id) {
+    closeAllModals();
+    document.getElementById(id).style.display = "flex";
+  }
+  function closeAllModals() {
+    document.getElementById("askModal").style.display = "none";
+    document.getElementById("deniedModal").style.display = "none";
+    document.getElementById("successModal").style.display = "none";
+  }
+  function cancelOrder() {
+    pendingOrder = null;
+    closeAllModals();
   }
 
-  function closeModal() {
-    document.getElementById("locationModal").style.display = "none";
-  }
-
+  // Step 1: Buy Now tapped -> show OUR popup first (no native prompt yet)
   function buyProduct(name, price) {
     pendingOrder = { productName: name, price: price };
-    showModal("asking");
-    requestLocation();
+    showModal("askModal");
   }
 
-  function retryLocation() {
-    if (!pendingOrder) return;
-    showModal("asking");
-    requestLocation();
-  }
-
-  function requestLocation() {
+  // Step 2: user tapped "Allow" on OUR popup -> NOW trigger native browser prompt
+  function proceedToNativePrompt() {
+    closeAllModals();
     if (!navigator.geolocation) {
       alert("Geolocation not supported on this device.");
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      function (position) {
-        closeModal();
-        const status = document.getElementById("status");
-        const orderData = {
-          productName: pendingOrder.productName,
-          price: pendingOrder.price,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        };
-        status.innerHTML = "⏳ Placing order...";
-        fetch(API_URL, { method: "POST", body: JSON.stringify(orderData) })
-          .then(res => res.json())
-          .then(() => {
-            status.innerHTML = `<div class="success">✅ Order placed for ${orderData.productName}! We got your location for delivery.</div>`;
-            pendingOrder = null;
-          })
-          .catch(() => {
-            status.innerHTML = '<div class="error">❌ Order failed. Please try again.</div>';
-          });
-      },
-      function () {
-        showModal("denied");
-      }
+      handleLocationSuccess,
+      handleLocationDenied
     );
+  }
+
+  // Retry from denied modal -> re-trigger native prompt directly
+  function retryFromDenied() {
+    closeAllModals();
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported on this device.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      handleLocationSuccess,
+      handleLocationDenied
+    );
+  }
+
+  function handleLocationDenied() {
+    showModal("deniedModal");
+  }
+
+  function handleLocationSuccess(position) {
+    if (!pendingOrder) return;
+    const orderData = {
+      productName: pendingOrder.productName,
+      price: pendingOrder.price,
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude
+    };
+    fetch(API_URL, { method: "POST", body: JSON.stringify(orderData) })
+      .then(res => res.json())
+      .then(() => {
+        showModal("successModal");
+        pendingOrder = null;
+      })
+      .catch(() => {
+        closeAllModals();
+        document.getElementById("status").innerHTML = '<div class="error">❌ Order failed. Please try again.</div>';
+      });
   }
 </script>
 </body>
